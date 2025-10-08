@@ -11,6 +11,11 @@ export default function Dashboard() {
   const [jobStatus, setJobStatus] = useState('')
   const router = useRouter()
 
+  const logout = () => {
+    localStorage.removeItem('adminToken')
+    router.push('/')
+  }
+
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -72,6 +77,14 @@ export default function Dashboard() {
 
       const data = await response.json()
       
+      // Check for authentication failure
+      if (response.status === 401 || data.message?.includes('Authentication failed')) {
+        alert('Session expired. Please login again.')
+        localStorage.removeItem('adminToken')
+        router.push('/')
+        return
+      }
+      
       if (data.success) {
         if (data.jobId) {
           // Background job started for HSN Details
@@ -110,7 +123,15 @@ export default function Dashboard() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">GSTR-1 Reports</h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold text-gray-900">GSTR-1 Reports</h1>
+            <button
+              onClick={logout}
+              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 flex items-center"
+            >
+              <span className="mr-2">🚪</span> Logout
+            </button>
+          </div>
           
           {/* Month/Year Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
