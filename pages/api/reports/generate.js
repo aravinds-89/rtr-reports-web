@@ -40,14 +40,16 @@ async function getOrderItems(token, orderId) {
 async function getProductHSN(token, sku) {
   try {
     const response = await axios.get(`${MAGENTO_BASE_URL}/products/${sku}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
+      timeout: 5000 // 5 second timeout
     })
     
     const customAttrs = response.data.custom_attributes || []
     const hsnAttr = customAttrs.find(attr => attr.attribute_code === 'hsncode')
-    return hsnAttr?.value || 'N/A'
-  } catch {
-    return 'N/A'
+    return hsnAttr?.value || '99999999'
+  } catch (error) {
+    console.log(`HSN fetch failed for SKU ${sku}:`, error.message)
+    return '99999999' // Default HSN code
   }
 }
 
@@ -55,10 +57,11 @@ async function generateHSNDetails(token, fromDate, toDate) {
   const orders = await getOrdersByDateRange(token, fromDate, toDate)
   const hsnSummary = {}
   let totalValue = 0, totalTax = 0
+  const hsnCache = {} // Cache HSN codes to avoid duplicate API calls
 
   for (const order of orders) {
-    // Use order items directly from order object instead of separate API call
-    const orderItems = order.items || []
+    const orderId = order.increment_id || order.entity_id
+    const orderItems = await getOrderItems(token, orderId)
     
     for (const item of orderItems) {
       const sku = item.sku || ''
@@ -68,8 +71,15 @@ async function generateHSNDetails(token, fromDate, toDate) {
       
       if (qty <= 0) continue
       
-      // Use a default HSN code instead of API call to avoid timeout
-      const hsnCode = '99999999' // Default HSN for services/general items
+      // Get HSN code with caching
+      let hsnCode
+      if (hsnCache[sku]) {
+        hsnCode = hsnCache[sku]
+      } else {
+        hsnCode = await getProductHSN(token, sku)
+        hsnCache[sku] = hsnCode
+      }
+      
       let taxRate = parseFloat(item.tax_percent || 0)
       
       if (!taxRate && taxAmount > 0 && rowTotal > 0) {
@@ -92,7 +102,7 @@ async function generateHSNDetails(token, fromDate, toDate) {
       if (!hsnSummary[hsnRateKey]) {
         hsnSummary[hsnRateKey] = {
           hsn_code: hsnCode,
-          description: 'General Items',
+          description: hsnCode === 'N/A' ? 'General Items' : hsnCode,
           uqc: 'NOS-Numbers',
           total_quantity: 0,
           total_value: 0,
