@@ -409,6 +409,48 @@ function generateHTML(data, reportType) {
   return '<p>No data available</p>'
 }
 
+import { jobs } from './status.js'
+
+function generateJobId() {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9)
+}
+
+async function processReportInBackground(jobId, reportType, token, fromDate, toDate) {
+  try {
+    jobs.set(jobId, { status: 'processing', progress: 0 })
+    
+    let data
+    if (reportType === 'HSN Details') {
+      data = await generateHSNDetails(token, fromDate, toDate)
+    } else if (reportType === 'B2C Supplies') {
+      data = await generateB2CSupplies(token, fromDate, toDate)
+    } else if (reportType === 'B2CS') {
+      data = await generateB2CS(token, fromDate, toDate)
+    } else if (reportType === 'Documents') {
+      data = await generateDocuments(token, fromDate, toDate)
+    }
+    
+    const { csvContent, filename } = generateCSV(data, reportType)
+    const html = generateHTML(data, reportType)
+    
+    jobs.set(jobId, {
+      status: 'completed',
+      progress: 100,
+      data: {
+        csv: csvContent,
+        filename: filename,
+        html: html,
+        reportData: data
+      }
+    })
+  } catch (error) {
+    jobs.set(jobId, {
+      status: 'failed',
+      error: error.message
+    })
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
@@ -425,11 +467,23 @@ export default async function handler(req, res) {
     const fromDate = new Date(year, month - 1, 1)
     const toDate = new Date(year, month, 0, 23, 59, 59)
     
-    let data
-    
+    // For HSN Details, use background processing
     if (reportType === 'HSN Details') {
-      data = await generateHSNDetails(token, fromDate, toDate)
-    } else if (reportType === 'B2C Supplies') {
+      const jobId = generateJobId()
+      
+      // Start background processing
+      processReportInBackground(jobId, reportType, token, fromDate, toDate)
+      
+      return res.status(202).json({
+        success: true,
+        jobId: jobId,
+        message: 'Report generation started. Check status using the job ID.'
+      })
+    }
+    
+    // For other reports, process immediately
+    let data
+    if (reportType === 'B2C Supplies') {
       data = await generateB2CSupplies(token, fromDate, toDate)
     } else if (reportType === 'B2CS') {
       data = await generateB2CS(token, fromDate, toDate)
@@ -455,7 +509,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Report generation error:', error)
     
-    // Check if it's an authentication error
     if (error.message.includes('401')) {
       return res.status(401).json({
         success: false,

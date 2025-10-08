@@ -7,6 +7,8 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false)
   const [reportData, setReportData] = useState(null)
   const [reportType, setReportType] = useState('')
+  const [jobId, setJobId] = useState(null)
+  const [jobStatus, setJobStatus] = useState('')
   const router = useRouter()
 
   const months = [
@@ -23,10 +25,35 @@ export default function Dashboard() {
     }
   }, [router])
 
+  const checkJobStatus = async (jobId) => {
+    try {
+      const response = await fetch(`/api/reports/status?jobId=${jobId}`)
+      const job = await response.json()
+      
+      if (job.status === 'completed') {
+        setReportData(job.data)
+        setIsLoading(false)
+        setJobStatus('completed')
+      } else if (job.status === 'failed') {
+        alert('Report generation failed: ' + job.error)
+        setIsLoading(false)
+        setJobStatus('failed')
+      } else {
+        setJobStatus('processing')
+        setTimeout(() => checkJobStatus(jobId), 2000) // Check every 2 seconds
+      }
+    } catch (error) {
+      alert('Error checking job status: ' + error.message)
+      setIsLoading(false)
+    }
+  }
+
   const generateReport = async (type) => {
     setIsLoading(true)
     setReportType(type)
     setReportData(null)
+    setJobId(null)
+    setJobStatus('')
 
     try {
       const token = localStorage.getItem('adminToken')
@@ -44,14 +71,24 @@ export default function Dashboard() {
       })
 
       const data = await response.json()
+      
       if (data.success) {
-        setReportData(data.data)
+        if (data.jobId) {
+          // Background job started for HSN Details
+          setJobId(data.jobId)
+          setJobStatus('processing')
+          checkJobStatus(data.jobId)
+        } else {
+          // Immediate response for other reports
+          setReportData(data.data)
+          setIsLoading(false)
+        }
       } else {
         alert('Error generating report: ' + data.message)
+        setIsLoading(false)
       }
     } catch (error) {
       alert('Error: ' + error.message)
-    } finally {
       setIsLoading(false)
     }
   }
@@ -143,7 +180,15 @@ export default function Dashboard() {
         {isLoading && (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600">Generating {reportType} report...</p>
+            <p className="text-gray-600">
+              {jobStatus === 'processing' ? 
+                `Processing ${reportType} report in background...` : 
+                `Generating ${reportType} report...`
+              }
+            </p>
+            {jobId && (
+              <p className="text-sm text-gray-500 mt-2">Job ID: {jobId}</p>
+            )}
           </div>
         )}
 
