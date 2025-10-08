@@ -3,8 +3,11 @@ import axios from 'axios'
 const MAGENTO_BASE_URL = process.env.MAGENTO_BASE_URL
 
 async function getOrdersByDateRange(token, fromDate, toDate) {
-  const fromDateStr = `${fromDate.getFullYear()}-${(fromDate.getMonth() + 1).toString().padStart(2, '0')}-${fromDate.getDate().toString().padStart(2, '0')} 00:00:00`
-  const toDateStr = `${toDate.getFullYear()}-${(toDate.getMonth() + 1).toString().padStart(2, '0')}-${toDate.getDate().toString().padStart(2, '0')} 23:59:59`
+  // Use UTC dates for consistent API calls
+  const fromDateStr = `${fromDate.getUTCFullYear()}-${(fromDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${fromDate.getUTCDate().toString().padStart(2, '0')} 00:00:00`
+  const toDateStr = `${toDate.getUTCFullYear()}-${(toDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${toDate.getUTCDate().toString().padStart(2, '0')} 23:59:59`
+  
+  console.log(`API Date filter: ${fromDateStr} to ${toDateStr}`)
   
   let url = `${MAGENTO_BASE_URL}/orders?searchCriteria[pageSize]=100`
   url += `&searchCriteria[filterGroups][0][filters][0][field]=created_at`
@@ -254,7 +257,7 @@ async function generateDocuments(token, fromDate, toDate) {
     const status = order.status || ''
     const orderDate = new Date(order.created_at)
     
-    // Double check the order is within date range
+    // Double check the order is within date range (convert to UTC for comparison)
     if (orderNumber && orderDate >= fromDate && orderDate <= toDate) {
       orderNumbers.push(parseInt(orderNumber))
       if (status.toLowerCase().includes('cancel')) {
@@ -467,8 +470,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const fromDate = new Date(year, month - 1, 1)
-    const toDate = new Date(year, month, 0, 23, 59, 59)
+    // Create dates in UTC to avoid timezone issues
+    const fromDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0))
+    const toDate = new Date(Date.UTC(year, month, 0, 23, 59, 59))
+    
+    console.log(`Date range: ${fromDate.toISOString()} to ${toDate.toISOString()}`)
     
     // For HSN Details, use background processing
     if (reportType === 'HSN Details') {
