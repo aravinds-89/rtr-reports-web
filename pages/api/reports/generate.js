@@ -46,10 +46,10 @@ async function getProductHSN(token, sku) {
     
     const customAttrs = response.data.custom_attributes || []
     const hsnAttr = customAttrs.find(attr => attr.attribute_code === 'hsncode')
-    return hsnAttr?.value || '99999999'
+    return hsnAttr?.value || 'N/A'
   } catch (error) {
     console.log(`HSN fetch failed for SKU ${sku}:`, error.message)
-    return '99999999' // Default HSN code
+    return 'N/A'
   }
 }
 
