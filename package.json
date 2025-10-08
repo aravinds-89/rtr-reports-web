@@ -1,0 +1,24 @@
+{
+  "name": "rtr-reports-web",
+  "version": "1.0.0",
+  "description": "RTR Reports - GST Reports and Analytics Web App",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "axios": "1.6.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.16",
+    "eslint": "8.52.0",
+    "eslint-config-next": "14.0.0",
+    "postcss": "8.4.31",
+    "tailwindcss": "3.3.5"
+  }
+}

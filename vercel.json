@@ -1,0 +1,10 @@
+{
+  "env": {
+    "MAGENTO_BASE_URL": "https://api.routestoroots.in/rest/V1"
+  },
+  "functions": {
+    "pages/api/**/*.js": {
+      "maxDuration": 30
+    }
+  }
+}
