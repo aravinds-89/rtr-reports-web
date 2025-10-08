@@ -252,21 +252,24 @@ async function generateDocuments(token, fromDate, toDate) {
   for (const order of orders) {
     const orderNumber = order.increment_id
     const status = order.status || ''
+    const orderDate = new Date(order.created_at)
     
-    if (orderNumber) {
-      orderNumbers.push(orderNumber)
+    // Double check the order is within date range
+    if (orderNumber && orderDate >= fromDate && orderDate <= toDate) {
+      orderNumbers.push(parseInt(orderNumber))
       if (status.toLowerCase().includes('cancel')) {
         cancelledCount++
       }
     }
   }
   
-  orderNumbers.sort()
+  // Sort numerically instead of alphabetically
+  orderNumbers.sort((a, b) => a - b)
   
   return {
     documents: {
-      sr_no_from: orderNumbers[0] || '',
-      sr_no_to: orderNumbers[orderNumbers.length - 1] || '',
+      sr_no_from: orderNumbers.length > 0 ? orderNumbers[0].toString().padStart(9, '0') : '',
+      sr_no_to: orderNumbers.length > 0 ? orderNumbers[orderNumbers.length - 1].toString().padStart(9, '0') : '',
       total_number: orderNumbers.length,
       cancelled: cancelledCount
     }
