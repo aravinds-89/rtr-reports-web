@@ -177,6 +177,7 @@ async function generateB2CSupplies(token, fromDate, toDate) {
         productSummary[productKey] = {
           product_name: productName,
           sku: sku,
+          place_of_supply: '32-KERALA',
           tax_rate: taxRate,
           quantity: 0,
           taxable_value: 0,
@@ -300,9 +301,9 @@ function generateCSV(data, reportType) {
     })
     filename = `hsn_detailed_report_${new Date().getTime()}.csv`
   } else if (reportType === 'B2C Supplies') {
-    csvContent = 'Product Name,SKU,Tax Rate,Quantity,Taxable Value,CGST Amount,SGST Amount,Total Tax,Total Value\n'
+    csvContent = 'Product Name,SKU,Place of Supply,Tax Rate,Quantity,Taxable Value,CGST Amount,SGST Amount,Total Tax,Total Value\n'
     data.b2c_supplies.forEach(supply => {
-      csvContent += `${supply.product_name},${supply.sku},${supply.tax_rate.toFixed(0)},${supply.quantity.toFixed(0)},${supply.taxable_value.toFixed(2)},${supply.cgst_amount.toFixed(2)},${supply.sgst_amount.toFixed(2)},${supply.total_tax.toFixed(2)},${supply.total_value.toFixed(2)}\n`
+      csvContent += `${supply.product_name},${supply.sku},${supply.place_of_supply},${supply.tax_rate.toFixed(0)},${supply.quantity.toFixed(0)},${supply.taxable_value.toFixed(2)},${supply.cgst_amount.toFixed(2)},${supply.sgst_amount.toFixed(2)},${supply.total_tax.toFixed(2)},${supply.total_value.toFixed(2)}\n`
     })
     filename = `b2c_supplies_report_${new Date().getTime()}.csv`
   } else if (reportType === 'B2CS') {
@@ -355,6 +356,7 @@ function generateHTML(data, reportType) {
     let html = '<table class="min-w-full border border-gray-300"><thead class="bg-gray-50"><tr>'
     html += '<th class="border border-gray-300 px-4 py-2">Product Name</th>'
     html += '<th class="border border-gray-300 px-4 py-2">SKU</th>'
+    html += '<th class="border border-gray-300 px-4 py-2">Place of Supply</th>'
     html += '<th class="border border-gray-300 px-4 py-2">Tax Rate</th>'
     html += '<th class="border border-gray-300 px-4 py-2">Quantity</th>'
     html += '<th class="border border-gray-300 px-4 py-2">Taxable Value</th>'
@@ -367,6 +369,7 @@ function generateHTML(data, reportType) {
       html += '<tr>'
       html += `<td class="border border-gray-300 px-4 py-2">${supply.product_name}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">${supply.sku}</td>`
+      html += `<td class="border border-gray-300 px-4 py-2">${supply.place_of_supply}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">${supply.tax_rate.toFixed(0)}%</td>`
       html += `<td class="border border-gray-300 px-4 py-2">${supply.quantity.toFixed(0)}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">₹${supply.taxable_value.toFixed(2)}</td>`
