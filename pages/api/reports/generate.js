@@ -139,58 +139,68 @@ async function generateHSNDetails(token, fromDate, toDate) {
 
 async function generateB2CSupplies(token, fromDate, toDate) {
   const orders = await getOrdersByDateRange(token, fromDate, toDate)
-  const stateSummary = {}
+  const productSummary = {}
   let totalValue = 0, totalTax = 0
 
   for (const order of orders) {
-    const orderTotal = parseFloat(order.grand_total || 0)
-    const orderTax = parseFloat(order.tax_amount || 0)
+    const orderId = order.increment_id || order.entity_id
+    const orderItems = await getOrderItems(token, orderId)
     
-    let taxRate = 0
-    if (orderTax > 0 && orderTotal > 0) {
-      const taxableAmount = orderTotal - orderTax
-      if (taxableAmount > 0) {
-        taxRate = (orderTax / taxableAmount) * 100
-        if (taxRate <= 2.5) taxRate = 0
-        else if (taxRate <= 7.5) taxRate = 5
-        else if (taxRate <= 15) taxRate = 12
-        else if (taxRate <= 21) taxRate = 18
-        else taxRate = 28
+    for (const item of orderItems) {
+      const sku = item.sku || ''
+      const productName = item.name || sku
+      const qty = parseFloat(item.qty_ordered || 0)
+      const taxAmount = parseFloat(item.tax_amount || 0)
+      const rowTotal = parseFloat(item.row_total || 0)
+      
+      if (qty <= 0) continue
+      
+      let taxRate = parseFloat(item.tax_percent || 0)
+      if (!taxRate && taxAmount > 0 && rowTotal > 0) {
+        const taxableAmount = rowTotal - taxAmount
+        if (taxableAmount > 0) {
+          taxRate = (taxAmount / taxableAmount) * 100
+          if (taxRate <= 2.5) taxRate = 0
+          else if (taxRate <= 7.5) taxRate = 5
+          else if (taxRate <= 15) taxRate = 12
+          else if (taxRate <= 21) taxRate = 18
+          else taxRate = 28
+        }
       }
-    }
-    
-    const taxableValue = orderTotal - orderTax
-    const cgstAmount = orderTax / 2
-    const sgstAmount = orderTax / 2
-    const stateKey = `KL_${Math.round(taxRate)}`
-    
-    if (!stateSummary[stateKey]) {
-      stateSummary[stateKey] = {
-        state_name: 'Kerala',
-        state_code: 'KL',
-        tax_rate: taxRate,
-        taxable_value: 0,
-        cgst_amount: 0,
-        sgst_amount: 0,
-        total_tax: 0,
-        total_value: 0,
-        invoice_count: 0
+      
+      const taxableValue = rowTotal - taxAmount
+      const cgstAmount = taxAmount / 2
+      const sgstAmount = taxAmount / 2
+      const productKey = `${sku}_${Math.round(taxRate)}`
+      
+      if (!productSummary[productKey]) {
+        productSummary[productKey] = {
+          product_name: productName,
+          sku: sku,
+          tax_rate: taxRate,
+          quantity: 0,
+          taxable_value: 0,
+          cgst_amount: 0,
+          sgst_amount: 0,
+          total_tax: 0,
+          total_value: 0
+        }
       }
+      
+      productSummary[productKey].quantity += qty
+      productSummary[productKey].taxable_value += taxableValue
+      productSummary[productKey].cgst_amount += cgstAmount
+      productSummary[productKey].sgst_amount += sgstAmount
+      productSummary[productKey].total_tax += taxAmount
+      productSummary[productKey].total_value += rowTotal
+      
+      totalValue += rowTotal
+      totalTax += taxAmount
     }
-    
-    stateSummary[stateKey].taxable_value += taxableValue
-    stateSummary[stateKey].cgst_amount += cgstAmount
-    stateSummary[stateKey].sgst_amount += sgstAmount
-    stateSummary[stateKey].total_tax += orderTax
-    stateSummary[stateKey].total_value += orderTotal
-    stateSummary[stateKey].invoice_count += 1
-    
-    totalValue += orderTotal
-    totalTax += orderTax
   }
   
   return {
-    b2c_supplies: Object.values(stateSummary),
+    b2c_supplies: Object.values(productSummary),
     total_orders: orders.length,
     total_value: totalValue,
     total_tax: totalTax
@@ -290,9 +300,9 @@ function generateCSV(data, reportType) {
     })
     filename = `hsn_detailed_report_${new Date().getTime()}.csv`
   } else if (reportType === 'B2C Supplies') {
-    csvContent = 'State Name,State Code,Tax Rate,Taxable Value,CGST Amount,SGST Amount,Total Tax,Total Value,Invoice Count\n'
+    csvContent = 'Product Name,SKU,Tax Rate,Quantity,Taxable Value,CGST Amount,SGST Amount,Total Tax,Total Value\n'
     data.b2c_supplies.forEach(supply => {
-      csvContent += `${supply.state_name},${supply.state_code},${supply.tax_rate.toFixed(0)},${supply.taxable_value.toFixed(2)},${supply.cgst_amount.toFixed(2)},${supply.sgst_amount.toFixed(2)},${supply.total_tax.toFixed(2)},${supply.total_value.toFixed(2)},${supply.invoice_count}\n`
+      csvContent += `${supply.product_name},${supply.sku},${supply.tax_rate.toFixed(0)},${supply.quantity.toFixed(0)},${supply.taxable_value.toFixed(2)},${supply.cgst_amount.toFixed(2)},${supply.sgst_amount.toFixed(2)},${supply.total_tax.toFixed(2)},${supply.total_value.toFixed(2)}\n`
     })
     filename = `b2c_supplies_report_${new Date().getTime()}.csv`
   } else if (reportType === 'B2CS') {
@@ -343,24 +353,26 @@ function generateHTML(data, reportType) {
   
   if (reportType === 'B2C Supplies') {
     let html = '<table class="min-w-full border border-gray-300"><thead class="bg-gray-50"><tr>'
-    html += '<th class="border border-gray-300 px-4 py-2">State</th>'
-    html += '<th class="border border-gray-300 px-4 py-2">Place Of Supply</th>'
+    html += '<th class="border border-gray-300 px-4 py-2">Product Name</th>'
+    html += '<th class="border border-gray-300 px-4 py-2">SKU</th>'
     html += '<th class="border border-gray-300 px-4 py-2">Tax Rate</th>'
+    html += '<th class="border border-gray-300 px-4 py-2">Quantity</th>'
     html += '<th class="border border-gray-300 px-4 py-2">Taxable Value</th>'
     html += '<th class="border border-gray-300 px-4 py-2">CGST Amount</th>'
     html += '<th class="border border-gray-300 px-4 py-2">SGST Amount</th>'
-    html += '<th class="border border-gray-300 px-4 py-2">Invoice Count</th>'
+    html += '<th class="border border-gray-300 px-4 py-2">Total Value</th>'
     html += '</tr></thead><tbody>'
     
     data.b2c_supplies.forEach(supply => {
       html += '<tr>'
-      html += `<td class="border border-gray-300 px-4 py-2">${supply.state_name} (${supply.state_code})</td>`
-      html += `<td class="border border-gray-300 px-4 py-2">32-KERALA</td>`
+      html += `<td class="border border-gray-300 px-4 py-2">${supply.product_name}</td>`
+      html += `<td class="border border-gray-300 px-4 py-2">${supply.sku}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">${supply.tax_rate.toFixed(0)}%</td>`
+      html += `<td class="border border-gray-300 px-4 py-2">${supply.quantity.toFixed(0)}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">₹${supply.taxable_value.toFixed(2)}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">₹${supply.cgst_amount.toFixed(2)}</td>`
       html += `<td class="border border-gray-300 px-4 py-2">₹${supply.sgst_amount.toFixed(2)}</td>`
-      html += `<td class="border border-gray-300 px-4 py-2">${supply.invoice_count}</td>`
+      html += `<td class="border border-gray-300 px-4 py-2">₹${supply.total_value.toFixed(2)}</td>`
       html += '</tr>'
     })
     html += '</tbody></table>'
