@@ -26,10 +26,19 @@ export default async function handler(req, res) {
       })
     }
   } catch (error) {
-    console.error('Login error:', error.message)
+    console.error('Login error:', error.response?.data || error.message)
+    
+    // Check if API returned HTML error page
+    if (error.response?.headers['content-type']?.includes('text/html')) {
+      return res.status(500).json({
+        success: false,
+        message: 'API server error - received HTML instead of JSON response'
+      })
+    }
+    
     res.status(401).json({ 
       success: false, 
-      message: 'Authentication failed' 
+      message: error.response?.data?.message || 'Authentication failed'
     })
   }
 }

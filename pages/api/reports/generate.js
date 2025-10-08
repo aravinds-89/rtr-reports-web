@@ -14,18 +14,27 @@ async function getOrdersByDateRange(token, fromDate, toDate) {
   url += `&searchCriteria[filterGroups][1][filters][0][value]=${toDateStr}`
   url += `&searchCriteria[filterGroups][1][filters][0][conditionType]=lteq`
 
-  const response = await axios.get(url, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  })
-  
-  return response.data.items || []
+  try {
+    const response = await axios.get(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    return response.data.items || []
+  } catch (error) {
+    console.error('API Error:', error.response?.data || error.message)
+    throw new Error(`API request failed: ${error.response?.status} - ${error.response?.statusText || error.message}`)
+  }
 }
 
 async function getOrderItems(token, orderId) {
-  const response = await axios.get(`${MAGENTO_BASE_URL}/orders/${orderId}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  })
-  return response.data.items || []
+  try {
+    const response = await axios.get(`${MAGENTO_BASE_URL}/orders/${orderId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    return response.data.items || []
+  } catch (error) {
+    console.error(`Error fetching order ${orderId}:`, error.response?.data || error.message)
+    return []
+  }
 }
 
 async function getProductHSN(token, sku) {
@@ -434,6 +443,15 @@ export default async function handler(req, res) {
     
   } catch (error) {
     console.error('Report generation error:', error)
+    
+    // Check if it's an authentication error
+    if (error.message.includes('401')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication failed. Please login again.'
+      })
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Failed to generate report: ' + error.message
